@@ -29,8 +29,8 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
+    //await client.connect();
+   // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const db = client.db('driverfleetdb');
@@ -39,7 +39,11 @@ async function run() {
 
     // Middleware
     app.use(cors({
-      origin: process.env.CLIENT_URL || ['http://localhost:5173', 'http://localhost:3000'],
+      origin: [
+        'http://localhost:5173', 
+        'http://localhost:3000',
+        'https://client-iota-henna.vercel.app'
+      ],
       credentials: true
     }));
     app.use(express.json());
@@ -66,16 +70,16 @@ async function run() {
       const token = jwt.sign(user, process.env.JWT_SECRET || 'secret123', { expiresIn: '1d' });
       res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-      }).json({ success: true });
+        secure: true,
+        sameSite: 'none',
+      }).send({ success: true });
     });
 
     app.post('/api/logout', async (req, res) => {
       res.clearCookie('token', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        secure: true,
+        sameSite: 'none',
         maxAge: 0
       }).json({ success: true });
     });
@@ -209,6 +213,17 @@ async function run() {
       }
     });
 
+    // 3. Cancel Booking
+    app.delete('/api/bookings/:id', verifyToken, async (req, res) => {
+      try {
+        const { ObjectId } = require('mongodb');
+        const id = req.params.id;
+        const result = await bookingsCollection.deleteOne({ _id: new ObjectId(id) });
+        res.status(200).json({ success: true, result });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to cancel booking' });
+      }
+    });
     app.get('/', (req, res) => {
       res.send('DriveFleet API is running');
     });
