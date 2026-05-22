@@ -213,15 +213,33 @@ async function run() {
       }
     });
 
+    // Custom middleware for Private Network Access (fixes CORS from deployed frontend to localhost backend)
+    app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Private-Network', 'true');
+      next();
+    });
+
     // 3. Cancel Booking
     app.delete('/api/bookings/:id', verifyToken, async (req, res) => {
       try {
         const { ObjectId } = require('mongodb');
         const id = req.params.id;
+        
+        // Find the booking first to get the carId
+        const booking = await bookingsCollection.findOne({ _id: new ObjectId(id) });
+        if (booking && booking.carId) {
+          // Decrement the bookingCount of the car
+          await carsCollection.updateOne(
+            { _id: new ObjectId(booking.carId) },
+            { $inc: { bookingCount: -1 } }
+          );
+        }
+
         const result = await bookingsCollection.deleteOne({ _id: new ObjectId(id) });
         res.status(200).json({ success: true, result });
       } catch (error) {
-        res.status(500).json({ error: 'Failed to cancel booking' });
+        console.error("Cancel Booking Error:", error);
+        res.status(500).json({ error: error.message || 'Failed to cancel booking' });
       }
     });
     app.get('/', (req, res) => {
